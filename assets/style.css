@@ -1,0 +1,417 @@
+/* ========== VANILLA + BLOOD RED CYBERSECURITY THEME ========== */
+:root {
+    /* Vanilla Color Palette */
+    --vanilla-deep: #D4C9A8;
+    --vanilla-medium: #E8DFC5;
+    --vanilla-light: #F8F5E8;
+    --vanilla-ultralight: #FFFCF5;
+    
+    /* Blood Red Color Palette */
+    --blood-red: #8B0000;
+    --blood-red-dark: #660000;
+    --blood-red-light: #A52A2A;
+    --blood-red-pale: rgba(139, 0, 0, 0.1);
+    --blood-red-shadow: rgba(139, 0, 0, 0.3);
+    
+    /* Accent Colors */
+    --cyber-teal: #2EC4B6;
+    --alert-orange: #FF6B35;
+    --warning-yellow: #FFD700;
+    --success-green: #38A169;
+    --info-blue: #3182CE;
+    --danger-red: #DC2626;
+    
+    /* Shadows */
+    --shadow-light: 0 2px 8px var(--blood-red-shadow);
+    --shadow-medium: 0 4px 12px var(--blood-red-shadow);
+    --shadow-heavy: 0 6px 20px var(--blood-red-shadow);
+    --shadow-selected: 0 0 0 3px var(--blood-red-shadow), 0 6px 20px var(--blood-red-shadow);
+    --shadow-blocked: 0 0 0 3px var(--danger-red), 0 6px 20px rgba(220, 38, 38, 0.4);
+}
+
+/* ========== BASE STYLES ========== */
+.stApp {
+    background: linear-gradient(135deg, var(--vanilla-light) 0%, var(--vanilla-medium) 100%) !important;
+    color: var(--blood-red) !important;
+    font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif !important;
+    min-height: 100vh;
+}
+
+/* ========== TYPOGRAPHY ========== */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--blood-red) !important;
+    font-weight: 700 !important;
+    margin-bottom: 1rem !important;
+    text-shadow: 1px 1px 2px var(--blood-red-pale);
+}
+
+h1 {
+    font-size: 3rem !important;
+    background: linear-gradient(90deg, var(--blood-red), var(--blood-red-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    border-bottom: 4px solid var(--blood-red);
+    padding-bottom: 15px;
+    margin-bottom: 30px !important;
+}
+
+h2 {
+    font-size: 2rem !important;
+    border-left: 5px solid var(--blood-red);
+    padding-left: 15px;
+    margin-top: 30px !important;
+}
+
+h3 {
+    font-size: 1.5rem !important;
+    border-bottom: 2px solid var(--blood-red-pale);
+    padding-bottom: 8px;
+}
+
+/* ========== SIDEBAR ========== */
+.css-1d391kg, .css-1lcbmhc, .sidebar .sidebar-content {
+    background: linear-gradient(180deg, var(--vanilla-medium), var(--vanilla-deep)) !important;
+    border-right: 4px solid var(--blood-red) !important;
+    box-shadow: var(--shadow-medium) !important;
+}
+
+.sidebar .sidebar-content h1,
+.sidebar .sidebar-content h2,
+.sidebar .sidebar-content h3,
+.sidebar .sidebar-content p,
+.sidebar .sidebar-content label,
+.sidebar .sidebar-content .stCheckbox label,
+.sidebar .sidebar-content .stRadio label {
+    color: var(--blood-red) !important;
+}
+
+/* ========== SELECTED ITEMS WITH FUCKING SHADOW ========== */
+.stCheckbox [data-baseweb="checkbox"][aria-checked="true"],
+.stRadio [data-baseweb="radio"][aria-checked="true"],
+.stTabs [aria-selected="true"],
+.stButton > button:focus,
+.stButton > button:active,
+.streamlit-expanderHeader[aria-expanded="true"] {
+    box-shadow: var(--shadow-selected) !important;
+    transform: translateY(-2px) !important;
+    transition: all 0.3s ease !important;
+    z-index: 10 !important;
+    position: relative !important;
+}
+
+/* BLOCKED ITEMS */
+.blocked-item {
+    box-shadow: var(--shadow-blocked) !important;
+    border: 3px solid var(--danger-red) !important;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(139, 0, 0, 0.2)) !important;
+    animation: pulse-blocked 2s infinite !important;
+}
+
+@keyframes pulse-blocked {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+/* ========== BUTTONS ========== */
+.stButton > button {
+    background: linear-gradient(135deg, var(--blood-red), var(--blood-red-dark)) !important;
+    color: var(--vanilla-light) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 12px 24px !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    box-shadow: var(--shadow-medium) !important;
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: var(--shadow-heavy) !important;
+    background: linear-gradient(135deg, var(--blood-red-dark), #550000) !important;
+}
+
+.stButton > button:active {
+    transform: translateY(-1px) !important;
+}
+
+/* Block Button */
+.block-button {
+    background: linear-gradient(135deg, var(--danger-red), #B91C1C) !important;
+    border: 2px solid #7F1D1D !important;
+}
+
+.block-button:hover {
+    background: linear-gradient(135deg, #B91C1C, #991B1B) !important;
+}
+
+/* Unblock Button */
+.unblock-button {
+    background: linear-gradient(135deg, var(--success-green), #2F855A) !important;
+    border: 2px solid #22543D !important;
+}
+
+.unblock-button:hover {
+    background: linear-gradient(135deg, #2F855A, #276749) !important;
+}
+
+/* ========== WARNING BOXES ========== */
+.warning-box {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.2), rgba(139, 0, 0, 0.3)) !important;
+    border: 3px solid var(--alert-orange) !important;
+    border-left: 10px solid var(--alert-orange) !important;
+    color: var(--blood-red-dark) !important;
+    border-radius: 12px !important;
+    padding: 25px !important;
+    font-weight: 800 !important;
+    font-size: 1.2rem !important;
+    box-shadow: var(--shadow-heavy) !important;
+    margin: 20px 0 !important;
+    animation: pulse-warning 2s infinite !important;
+}
+
+@keyframes pulse-warning {
+    0% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4); }
+    70% { box-shadow: 0 0 0 15px rgba(255, 107, 53, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0); }
+}
+
+/* ========== METRICS ========== */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, var(--vanilla-ultralight), var(--vanilla-light)) !important;
+    border: 3px solid var(--blood-red-light) !important;
+    border-radius: 15px !important;
+    padding: 20px !important;
+    box-shadow: var(--shadow-medium) !important;
+}
+
+[data-testid="stMetricLabel"] {
+    color: var(--blood-red-dark) !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: var(--blood-red) !important;
+    font-size: 2.5rem !important;
+    font-weight: 900 !important;
+}
+
+[data-testid="stMetricDelta"] {
+    font-weight: 700 !important;
+}
+
+/* ========== DATA TABLES ========== */
+.dataframe {
+    border: 3px solid var(--blood-red-light) !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: var(--shadow-light) !important;
+}
+
+.dataframe th {
+    background: linear-gradient(135deg, var(--blood-red), var(--blood-red-dark)) !important;
+    color: var(--vanilla-light) !important;
+    font-weight: 700 !important;
+    padding: 15px !important;
+    text-align: left !important;
+    font-size: 1rem !important;
+}
+
+.dataframe td {
+    padding: 12px 15px !important;
+    color: var(--blood-red) !important;
+    border-bottom: 1px solid var(--blood-red-pale) !important;
+    font-weight: 600 !important;
+}
+
+.dataframe tr:nth-child(even) {
+    background-color: var(--vanilla-ultralight) !important;
+}
+
+.dataframe tr:nth-child(odd) {
+    background-color: var(--vanilla-light) !important;
+}
+
+.dataframe tr:hover {
+    background-color: var(--blood-red-pale) !important;
+    transform: scale(1.01) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* ========== EXPANDERS ========== */
+.streamlit-expanderHeader {
+    background: linear-gradient(90deg, var(--blood-red-pale), rgba(165, 42, 42, 0.2)) !important;
+    color: var(--blood-red) !important;
+    font-weight: 700 !important;
+    border: 3px solid var(--blood-red) !important;
+    border-radius: 10px !important;
+    padding: 18px 25px !important;
+    font-size: 1.1rem !important;
+    box-shadow: var(--shadow-light) !important;
+}
+
+.streamlit-expanderHeader:hover {
+    background: linear-gradient(90deg, rgba(139, 0, 0, 0.2), rgba(165, 42, 42, 0.3)) !important;
+}
+
+.streamlit-expanderContent {
+    background-color: var(--vanilla-ultralight) !important;
+    border: 3px solid var(--blood-red-light) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    padding: 25px !important;
+    box-shadow: var(--shadow-light) !important;
+}
+
+/* ========== TABS ========== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 2px !important;
+    background-color: var(--vanilla-medium) !important;
+    padding: 5px !important;
+    border-radius: 10px !important;
+    border: 2px solid var(--blood-red-light) !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: var(--vanilla-light) !important;
+    color: var(--blood-red) !important;
+    border-radius: 8px !important;
+    padding: 12px 24px !important;
+    font-weight: 700 !important;
+    transition: all 0.3s ease !important;
+    margin: 2px !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: var(--blood-red-pale) !important;
+    transform: translateY(-2px) !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, var(--blood-red), var(--blood-red-dark)) !important;
+    color: var(--vanilla-light) !important;
+    box-shadow: var(--shadow-selected) !important;
+    transform: translateY(-3px) !important;
+}
+
+/* ========== PLOTLY GRAPHS ========== */
+.js-plotly-plot .plotly,
+.js-plotly-plot .plot-container,
+.js-plotly-plot .main-svg {
+    background-color: var(--vanilla-ultralight) !important;
+    border-radius: 12px !important;
+    padding: 10px !important;
+}
+
+.js-plotly-plot .xtitle,
+.js-plotly-plot .ytitle,
+.js-plotly-plot .g-gtitle {
+    fill: var(--blood-red) !important;
+    color: var(--blood-red) !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+}
+
+.js-plotly-plot .xtick text,
+.js-plotly-plot .ytick text {
+    fill: var(--blood-red-dark) !important;
+    color: var(--blood-red-dark) !important;
+    font-weight: 600 !important;
+}
+
+.js-plotly-plot .legendtext {
+    fill: var(--blood-red) !important;
+    color: var(--blood-red) !important;
+    font-weight: 600 !important;
+}
+
+.js-plotly-plot .hovertext,
+.js-plotly-plot .hoverlayer .hovertext {
+    fill: var(--blood-red-dark) !important;
+    color: var(--blood-red-dark) !important;
+    background-color: var(--vanilla-ultralight) !important;
+    border: 2px solid var(--blood-red) !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    font-weight: 600 !important;
+    box-shadow: var(--shadow-medium) !important;
+}
+
+/* ========== BLOCKED LIST PANEL ========== */
+.blocked-panel {
+    background: linear-gradient(135deg, var(--vanilla-deep), var(--vanilla-medium)) !important;
+    border: 3px solid var(--danger-red) !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+    margin: 15px 0 !important;
+    box-shadow: var(--shadow-heavy) !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+}
+
+.blocked-item-card {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(139, 0, 0, 0.15)) !important;
+    border: 2px solid var(--danger-red) !important;
+    border-radius: 8px !important;
+    padding: 12px 15px !important;
+    margin: 8px 0 !important;
+    color: var(--blood-red-dark) !important;
+    font-weight: 600 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    transition: all 0.3s ease !important;
+}
+
+.blocked-item-card:hover {
+    transform: translateX(5px) !important;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(139, 0, 0, 0.25)) !important;
+}
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--vanilla-medium) !important;
+    border-radius: 6px !important;
+    border: 1px solid var(--vanilla-deep) !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(var(--blood-red), var(--blood-red-dark)) !important;
+    border-radius: 6px !important;
+    border: 2px solid var(--vanilla-medium) !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--blood-red-dark) !important;
+}
+
+/* ========== FOOTER ========== */
+footer:after {
+    content: 'CYBER SHIELD AI | VVIT NAMBUR | TEAM 1' !important;
+    visibility: visible !important;
+    display: block !important;
+    position: relative !important;
+    padding: 25px !important;
+    top: 2px !important;
+    color: var(--vanilla-light) !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, var(--blood-red), var(--blood-red-dark)) !important;
+    border-radius: 12px !important;
+    margin-top: 40px !important;
+    box-shadow: var(--shadow-heavy) !important;
+    letter-spacing: 1px !important;
+    font-size: 1.1rem !important;
+}

@@ -1,0 +1,21 @@
+timestamp,hostname,service,severity,message,user,source_ip,event_id,category
+2024-01-01 00:00:01,webserver-01,ssh,INFO,Accepted password for admin from 192.168.1.10,admin,192.168.1.10,1001,Authentication
+2024-01-01 00:00:02,webserver-01,ssh,WARNING,Failed password for root from 203.0.113.5,root,203.0.113.5,1002,Authentication
+2024-01-01 00:00:03,webserver-01,ssh,ERROR,Connection closed by invalid user [hacker] from 198.51.100.10,,198.51.100.10,1003,Authentication
+2024-01-01 00:00:04,dbserver-01,mysql,INFO,Connection established from 192.168.1.20,dba,192.168.1.20,2001,Database
+2024-01-01 00:00:05,dbserver-01,mysql,CRITICAL,Multiple failed login attempts from 203.0.113.15,,203.0.113.15,2002,Database
+2024-01-01 00:00:06,appserver-01,apache,INFO,GET /index.php 200,www-data,192.168.1.30,3001,Web
+2024-01-01 00:00:07,appserver-01,apache,ERROR,GET /admin.php 403,www-data,203.0.113.20,3002,Web
+2024-01-01 00:00:08,firewall-01,iptables,WARNING,DROP IN=eth0 OUT= MAC= SRC=203.0.113.25 DST=192.168.1.100,,203.0.113.25,4001,FW
+2024-01-01 00:00:09,firewall-01,iptables,ALERT,Port scan detected from 198.51.100.30,,198.51.100.30,4002,FW
+2024-01-01 00:00:10,ids-01,snort,CRITICAL,ET SCAN Potential SSH Scan,,203.0.113.35,5001,IDS
+2024-01-01 00:00:11,ids-01,snort,CRITICAL,ET DROP Dshield Block Listed Source group 1,,198.51.100.40,5002,IDS
+2024-01-01 00:00:12,router-01,syslog,INFO,Interface eth0 up,,,6001,Network
+2024-01-01 00:00:13,router-01,syslog,ERROR,Interface eth1 down,,,6002,Network
+2024-01-01 00:00:14,switch-01,syslog,WARNING,BPDU Guard: Blocking port 1/1,,,7001,Network
+2024-01-01 00:00:15,windows-dc-01,security,INFO,Logon Success (Administrator),Administrator,192.168.1.40,8001,Windows
+2024-01-01 00:00:16,windows-dc-01,security,FAILURE,Logon Failure (Unknown User),,203.0.113.45,8002,Windows
+2024-01-01 00:00:17,windows-dc-01,security,ALERT,Multiple Logon Failures,,198.51.100.50,8003,Windows
+2024-01-01 00:00:18,linux-server,sudo,INFO,sudo: admin : TTY=pts/0 ; USER=root,,192.168.1.50,9001,Linux
+2024-01-01 00:00:19,linux-server,sudo,ALERT,sudo: 3 incorrect password attempts for user admin,,203.0.113.55,9002,Linux
+2024-01-01 00:00:20,mailserver,postfix,INFO,message delivered to user@example.com,mail,192.168.1.60,10001,Mail
