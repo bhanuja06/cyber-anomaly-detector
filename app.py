@@ -5,7 +5,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 import time
+import os
 from datetime import datetime
+import google.generativeai as genai # type: ignore
+from dotenv import load_dotenv
+
+# ========== LOAD ENVIRONMENT VARIABLES ==========
+load_dotenv()
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(
@@ -61,6 +67,44 @@ def load_css():
         color: #660000 !important;
         font-weight: 600 !important;
     }
+    /* ========== LLM ANALYSIS RESPONSE ========== */
+    /* ========== LLM ANALYSIS RESPONSE ========== */
+.llm-response {
+    background: linear-gradient(135deg, var(--vanilla-light), var(--vanilla-medium)) !important;  /* CHANGED TO VANILLA */
+    border: 2px solid var(--blood-red) !important;  /* CHANGED BORDER TO BLOOD RED */
+    border-radius: 10px !important;
+    padding: 20px !important;
+    margin: 15px 0 !important;
+    color: var(--blood-red) !important;  /* CHANGED TO BLOOD RED */
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+}
+    .gauge-container {
+        background: linear-gradient(135deg, #F8F5E8, #E8DFC5) !important;
+        border: 2px solid #8B0000 !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin: 20px 0 !important;
+        text-align: center !important;
+    }
+    .block-button {
+        background: linear-gradient(135deg, #DC2626, #8B0000) !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-size: 1rem !important;
+        cursor: pointer !important;
+        transition: all 0.3s !important;
+        margin: 10px 0 !important;
+        width: 100% !important;
+    }
+    .block-button:hover {
+        background: linear-gradient(135deg, #8B0000, #660000) !important;
+        transform: scale(1.05) !important;
+        box-shadow: 0 4px 12px rgba(139, 0, 0, 0.4) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -74,11 +118,206 @@ if 'results' not in st.session_state:
 if 'blocked_items' not in st.session_state:
     st.session_state.blocked_items = []
 if 'llm_results' not in st.session_state:
-    st.session_state.llm_results = []
+    st.session_state.llm_results = {}
 if 'run_detection' not in st.session_state:
     st.session_state.run_detection = False
 if 'selected_anomalies' not in st.session_state:
     st.session_state.selected_anomalies = []
+if 'gemma_api_key' not in st.session_state:
+    st.session_state.gemma_api_key = os.getenv("GEMINI_API_KEY", "")
+if 'gemma_initialized' not in st.session_state:
+    st.session_state.gemma_initialized = False
+
+# ========== HELPER FUNCTION FOR GAUGE CHART ==========
+# ========== HELPER FUNCTION FOR GAUGE CHART ==========
+def create_threat_gauge(risk_level, anomaly_score):
+    """Create a gauge chart for threat level"""
+    # Map risk level to value (0-100)
+    risk_mapping = {
+        "Low": 25,
+        "Medium": 50,
+        "High": 75,
+        "Critical": 90
+    }
+    
+    # Get value for gauge
+    value = risk_mapping.get(risk_level, 50)
+    
+    # Determine colors based on risk level
+    if risk_level == "Low":
+        bar_color = 'green'
+        threshold_color = "green"
+        risk_color = "#10B981"  # Green
+    elif risk_level == "Medium":
+        bar_color = 'yellow'
+        threshold_color = "orange"
+        risk_color = "#F59E0B"  # Yellow
+    else:  # High or Critical
+        bar_color = 'red'
+        threshold_color = "red"
+        risk_color = "#DC2626"  # Red
+    
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=value,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': f"Threat Level: {risk_level}", 'font': {'size': 24, 'color': '#8B0000'}},
+        number={'font': {'size': 40, 'color': risk_color}},
+        gauge={
+            'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "#8B0000"},
+            'bar': {'color': bar_color},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "#8B0000",
+            'steps': [
+                {'range': [0, 33], 'color': '#D1FAE5'},  # Light green
+                {'range': [33, 66], 'color': '#FEF3C7'}, # Light yellow
+                {'range': [66, 100], 'color': '#FEE2E2'} # Light red
+            ],
+            'threshold': {
+                'line': {'color': threshold_color, 'width': 4},
+                'thickness': 0.75,
+                'value': value
+            }
+        }
+    ))
+    
+    fig.update_layout(
+        height=300,
+        paper_bgcolor='#F8F5E8',
+        font={'color': "#8B0000", 'family': "Arial"},
+        margin=dict(t=50, b=10, l=10, r=10)
+    )
+    
+    return fig
+
+# ========== GEMMA 7B INTEGRATION ==========
+class GemmaLLMAnalyzer:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or st.session_state.gemma_api_key
+        self.model = None
+        self.model_name = None
+        
+    def initialize(self):
+        """Initialize Gemma 3 model"""
+        if not self.api_key:
+            return False, "API key not provided"
+        
+        try:
+            genai.configure(api_key=self.api_key)
+            
+            # Try Gemma 3 models (you have access to these!)
+            gemma_models = [
+                'gemma-3-4b-it',    # Good balance of speed/capability
+                'gemma-3-12b-it',   # More capable
+                'gemma-3-1b-it',    # Fastest
+                'gemma-3-27b-it',   # Most capable
+                'gemini-2.0-flash', # Alternative if Gemma fails
+                'gemini-pro-latest' # Another alternative
+            ]
+            
+            last_error = None
+            for model_name in gemma_models:
+                try:
+                    st.sidebar.write(f"🔄 Trying model: {model_name}...")
+                    
+                    self.model = genai.GenerativeModel(model_name)
+                    
+                    # Test with a simple request
+                    test_response = self.model.generate_content(
+                        "Say 'Hello' if you're working.",
+                        generation_config=genai.types.GenerationConfig(
+                            max_output_tokens=20,
+                            temperature=0.1
+                        )
+                    )
+                    
+                    self.model_name = model_name
+                    st.session_state.gemma_initialized = True
+                    
+                    # Show success in sidebar
+                    st.sidebar.success(f"✅ Using: {model_name}")
+                    
+                    return True, f"✅ Gemma 3 Model Initialized: {model_name}"
+                    
+                except Exception as e:
+                    last_error = f"{model_name}: {str(e)[:100]}"
+                    continue
+            
+            return False, f"Failed to initialize. Last error: {last_error}"
+            
+        except Exception as e:
+            return False, f"Configuration error: {str(e)}"
+    
+    def analyze_anomaly(self, anomaly_data):
+        """Analyze an anomaly using Gemma 3"""
+        if not self.model:
+            return "Gemma 3 model not initialized"
+        
+        try:
+            # Format anomaly data
+            anomaly_info = f"""
+            CYBERSECURITY ANOMALY REPORT:
+            
+            ANOMALY DETAILS:
+            • ID: {anomaly_data['index']}
+            • Risk Score: {abs(anomaly_data['anomaly_score']):.3f}
+            • Source IP: {anomaly_data['original_data'].get('source_ip', 'N/A')}
+            • Destination: {anomaly_data['original_data'].get('destination_ip', 'N/A')}
+            
+            NETWORK CHARACTERISTICS:
+            • Port: {anomaly_data['original_data'].get('port', 'N/A')}
+            • Protocol: {anomaly_data['original_data'].get('protocol', 'N/A')}
+            • Packet Size: {anomaly_data['original_data'].get('packet_size', 'N/A')}
+            • Response Code: {anomaly_data['original_data'].get('response_code', 'N/A')}
+            
+            SUSPICIOUS INDICATORS:
+            • {', '.join(anomaly_data['suspicious_features'])}
+            """
+            
+            prompt = f"""Analyze this network anomaly for cybersecurity threats. Be direct and concise.
+
+{anomaly_info}
+
+Respond in this exact format without any introductory phrases:
+
+RISK LEVEL: [Low/Medium/High/Critical] 
+
+**THREAT CLASSIFICATION**: [1-2 line description]
+
+**TECHNICAL ANALYSIS**: [2-3 key technical points]
+
+**RECOMMENDED ACTIONS**: [2-3 immediate actions]
+
+Keep it brief and action-oriented. No markdown formatting."""
+            
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=500,
+                    temperature=0.3,
+                    top_p=0.8
+                )
+            )
+            
+            return response.text
+            
+        except Exception as e:
+            # Fallback response if AI fails
+            risk_level = '🔴 HIGH' if abs(anomaly_data['anomaly_score']) > 0.5 else '🟡 MEDIUM' if abs(anomaly_data['anomaly_score']) > 0.3 else '🟢 LOW'
+            return f"""RISK_LEVEL: {risk_level.split()[-1]}
+
+🔍 **Anomaly Analysis** (Fallback Mode)
+
+**Anomaly #{anomaly_data['index']}**
+**Risk Level:** {risk_level}
+**Source:** {anomaly_data['original_data'].get('source_ip', 'Unknown')}
+**Port:** {anomaly_data['original_data'].get('port', 'N/A')}
+
+**Suspicious Indicators:**
+{chr(10).join(['• ' + feat for feat in anomaly_data['suspicious_features'][:3]])}
+
+**Recommended Action:** Monitor activity and consider temporary blocking if pattern continues."""
 
 # ========== ISOLATION FOREST DETECTOR ==========
 class IsolationForestDetector:
@@ -246,6 +485,32 @@ with st.sidebar:
     
     st.divider()
     
+    # GEMMA 7B SETTINGS - ADDED
+    st.markdown("### 🤖 GEMMA 7B SETTINGS")
+    
+    api_key = st.text_input("Google AI API Key", 
+                           value=st.session_state.gemma_api_key,
+                           type="password",
+                           help="Get free API key from Google AI Studio")
+    
+    if api_key != st.session_state.gemma_api_key:
+        st.session_state.gemma_api_key = api_key
+    
+    if st.button("Initialize Gemma LLM", type="secondary", use_container_width=True):
+        if not api_key:
+            st.error("Please enter API key")
+        else:
+            with st.spinner("Initializing Gemma 7B..."):
+                analyzer = GemmaLLMAnalyzer(api_key)
+                success, message = analyzer.initialize()
+                if success:
+                    st.session_state.llm_analyzer = analyzer
+                    st.success(message)
+                else:
+                    st.error(message)
+    
+    st.divider()
+    
     # Actions
     st.markdown("### 🚀 ACTIONS")
     col1, col2 = st.columns(2)
@@ -303,7 +568,7 @@ with st.sidebar:
         • T.UshaSri (22BQ1A47A2)
         </p>
         <p style="color: #8B0000; margin: 10px 0 0 0; font-size: 0.8rem;">
-        <strong>Project:</strong> Anomaly Detection using LLMs
+        <strong>Project:</strong> Anomaly Detection using Isolation Forest & Gemma 7B LLM
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -488,559 +753,168 @@ with tab2:
                     plot_bgcolor='#F8F5E8',
                     paper_bgcolor='#F8F5E8',
                     font=dict(color='#8B0000', size=12),
-                    title_font=dict(color='#8B0000', size=16),
-                    showlegend=False,
-                    hovermode='closest'
+                    title_font=dict(color='#8B0000', size=16)
                 )
                 st.plotly_chart(fig2, use_container_width=True)
-            
-            # BAR CHART - Feature Importance
-            st.subheader("Feature Analysis")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Count suspicious features
-                feature_counts = {}
-                for r in anomalies:
-                    for feature in r['suspicious_features']:
-                        feature_counts[feature] = feature_counts.get(feature, 0) + 1
-                
-                if feature_counts:
-                    features = list(feature_counts.keys())
-                    counts = list(feature_counts.values())
-                    
-                    fig3 = go.Figure(go.Bar(
-                        x=counts,
-                        y=features,
-                        orientation='h',
-                        marker_color=['#8B0000', '#A52A2A', '#FF6B35', '#2EC4B6'][:len(features)],
-                        text=counts,
-                        textposition='auto'
-                    ))
-                    fig3.update_layout(
-                        title='Most Suspicious Features',
-                        xaxis_title='Frequency',
-                        yaxis_title='Features',
-                        height=400,
-                        plot_bgcolor='#F8F5E8',
-                        paper_bgcolor='#F8F5E8',
-                        font=dict(color='#8B0000', size=12),
-                        title_font=dict(color='#8B0000', size=16)
-                    )
-                    st.plotly_chart(fig3, use_container_width=True)
-            
-            with col2:
-                # GAUGE CHART - System Risk Level - FIXED COLORS
-                risk_score = len(anomalies) / total * 100
-                risk_color = '#38A169' if risk_score < 20 else '#FF6B35' if risk_score < 50 else '#8B0000'
-                
-                fig4 = go.Figure(go.Indicator(
-                    mode="gauge+number+delta",
-                    value=risk_score,
-                    title={'text': "System Risk Level", 'font': {'size': 20, 'color': '#8B0000'}},
-                    delta={'reference': 20, 'increasing': {'color': '#8B0000'}},
-                    number={'font': {'size': 40, 'color': '#8B0000', 'weight': 'bold'}},
-                    gauge={
-                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#8B0000'},
-                        'bar': {'color': risk_color, 'thickness': 0.3},
-                        'bgcolor': '#F8F5E8',
-                        'borderwidth': 2,
-                        'bordercolor': '#8B0000',
-                        'steps': [
-                            {'range': [0, 20], 'color': '#38A169'},
-                            {'range': [20, 50], 'color': '#FF6B35'},
-                            {'range': [50, 100], 'color': '#8B0000'}
-                        ],
-                        'threshold': {
-                            'line': {'color': '#FFFFFF', 'width': 4},
-                            'thickness': 0.75,
-                            'value': risk_score
-                        }
-                    }
-                ))
-                fig4.update_layout(
-                    height=400,
-                    margin=dict(l=20, r=20, t=50, b=20),
-                    font=dict(color='#8B0000', family='Segoe UI'),
-                    paper_bgcolor='#F8F5E8'
-                )
-                st.plotly_chart(fig4, use_container_width=True)
-        
-        else:
-            st.success("🎉 No anomalies detected! System is clean.")
-    else:
-        # WARNING BOX - FUCKING BOX TO SHOW THAT SHIT
-        st.markdown("""
-        <div class="warning-box">
-            ⚠️ WARNING: NO DETECTION RUN<br>
-            Click "Run Detection" in the sidebar to start anomaly detection
-        </div>
-        """, unsafe_allow_html=True)
 
 with tab3:
-    st.markdown("### ADVANCED AI ANALYSIS")
+    st.markdown("### 🤖 GEMMA 7B AI ANALYSIS")
     
-    if st.session_state.results:
-        anomalies = [r for r in st.session_state.results if r['is_anomaly'] == 1]
+    if 'llm_analyzer' not in st.session_state or not st.session_state.gemma_initialized:
+        st.warning("""
+        ⚠️ **Gemma 7B LLM not initialized**
         
-        if anomalies:
-            # LLM Analysis Button
-            if st.button("🧠 Run Deep Analysis with AI", type="primary", use_container_width=True):
-                with st.spinner("Analyzing threats with AI..."):
-                    llm_results = []
-                    for i, anomaly in enumerate(anomalies[:5]):
-                        anomaly_type = np.random.choice(['DDoS Attack', 'Port Scan', 'Brute Force', 
-                                                        'Malware', 'Data Exfiltration'])
-                        risk_level = np.random.choice(['Low', 'Medium', 'High', 'Critical'])
-                        confidence = np.random.uniform(0.7, 0.95)
-                        
-                        llm_results.append({
-                            **anomaly,
-                            'llm_analysis': {
-                                'type': anomaly_type,
-                                'risk': risk_level,
-                                'confidence': confidence,
-                                'reasoning': f"""
-                                • Pattern matches {anomaly_type} signature
-                                • Unusual traffic from {anomaly['original_data'].get('source_ip', 'unknown IP')}
-                                • High {anomaly['suspicious_features'][0] if anomaly['suspicious_features'] else 'packet_size'} values detected
-                                • Correlation with known threat indicators
-                                """,
-                                'recommendation': np.random.choice([
-                                    'Immediate IP blocking required',
-                                    'Monitor for 24 hours',
-                                    'Investigate source network',
-                                    'Update firewall rules'
-                                ])
-                            }
-                        })
-                    
-                    st.session_state.llm_results = llm_results
-                    st.success(f"✅ AI analysis complete: {len(llm_results)} threats analyzed")
-            
-            # Display LLM Results
-            if st.session_state.llm_results:
-                st.markdown("---")
-                for i, result in enumerate(st.session_state.llm_results):
-                    analysis = result['llm_analysis']
-                    
-                    with st.expander(f"Threat {i+1}: {analysis['type']} ({analysis['risk']} Risk)", 
-                                   expanded=(i==0)):
-                        col1, col2 = st.columns([1, 2])
-                        
-                        with col1:
-                            # Risk Gauge - FIXED COLORS
-                            fig = go.Figure(go.Indicator(
-                                mode="gauge+number",
-                                value=analysis['confidence'] * 100,
-                                title={'text': "AI Confidence", 'font': {'color': '#8B0000', 'size': 16}},
-                                number={'font': {'size': 32, 'color': '#8B0000', 'weight': 'bold'}},
-                                gauge={
-                                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#8B0000'},
-                                    'bar': {'color': '#8B0000', 'thickness': 0.3},
-                                    'bgcolor': '#F8F5E8',
-                                    'borderwidth': 2,
-                                    'bordercolor': '#8B0000',
-                                    'steps': [
-                                        {'range': [0, 50], 'color': '#38A169'},
-                                        {'range': [50, 80], 'color': '#FF6B35'},
-                                        {'range': [80, 100], 'color': '#8B0000'}
-                                    ],
-                                    'threshold': {
-                                        'line': {'color': '#FFFFFF', 'width': 4},
-                                        'thickness': 0.75,
-                                        'value': analysis['confidence'] * 100
-                                    }
-                                }
-                            ))
-                            fig.update_layout(
-                                height=250,
-                                margin=dict(l=10, r=10, t=40, b=10),
-                                font=dict(color='#8B0000', family='Segoe UI'),
-                                paper_bgcolor='#F8F5E8'
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            st.metric("Risk Level", analysis['risk'])
-                            st.metric("Threat Type", analysis['type'])
-                        
-                        with col2:
-                            st.markdown("**🔍 AI Reasoning:**")
-                            st.info(analysis['reasoning'])
-                            
-                            st.markdown("**✅ Recommendation:**")
-                            st.success(analysis['recommendation'])
-                            
-                            # Block button in analysis
-                            if not result.get('blocked', False):
-                                if st.button(f"🚫 Block This Threat", key=f"block_ai_{i}", 
-                                           type="secondary", use_container_width=True):
-                                    block_item(result['index'], f"AI detected {analysis['type']}")
-                                    st.rerun()
-        else:
-            st.info("No anomalies to analyze")
-    else:
-        st.warning("Run detection first")
-
-with tab4:
-    st.markdown("### SYSTEM DASHBOARD")
-    
-    if st.session_state.results:
-        results = st.session_state.results
-        anomalies = [r for r in results if r['is_anomaly'] == 1]
-        blocked = [r for r in results if r.get('blocked', False)]
+        To use AI analysis:
+        1. Get a free API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+        2. Enter it in the sidebar
+        3. Click "Initialize Gemma LLM"
+        """)
         
-        # System Overview
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Records", len(results))
-        with col2:
-            st.metric("Anomalies", len(anomalies), f"{len(anomalies)/len(results)*100:.1f}%")
-        with col3:
-            st.metric("Blocked", len(blocked))
-        with col4:
-            avg_response = np.mean([r['original_data'].get('response_code', 200) for r in results])
-            st.metric("Avg Response", f"{avg_response:.0f} ms")
-        
-        # Performance Metrics
-        st.subheader("System Performance")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Line Chart - Timeline
-            time_data = []
-            for i in range(24):
-                hour_anomalies = len([r for r in anomalies if r['index'] % 24 == i])
-                time_data.append({'Hour': i, 'Anomalies': hour_anomalies})
-            
-            time_df = pd.DataFrame(time_data)
-            fig = px.line(time_df, x='Hour', y='Anomalies', 
-                         title='Anomalies by Hour', markers=True)
-            fig.update_traces(line_color='#8B0000', marker_color='#A52A2A')
-            fig.update_layout(
-                plot_bgcolor='#F8F5E8',
-                paper_bgcolor='#F8F5E8',
-                font=dict(color='#8B0000')
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # Pie Chart - Threat Distribution
-            if st.session_state.llm_results:
-                threat_types = {}
-                for r in st.session_state.llm_results:
-                    t = r['llm_analysis']['type']
-                    threat_types[t] = threat_types.get(t, 0) + 1
-                
-                fig = go.Figure(data=[go.Pie(
-                    labels=list(threat_types.keys()),
-                    values=list(threat_types.values()),
-                    hole=.4,
-                    marker_colors=['#8B0000', '#A52A2A', '#FF6B35', '#2EC4B6']
-                )])
-                fig.update_layout(
-                    title='Threat Type Distribution',
-                    plot_bgcolor='#F8F5E8',
-                    paper_bgcolor='#F8F5E8',
-                    font=dict(color='#8B0000')
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Real-time Monitoring
-        st.subheader("Real-time Monitoring")
-        placeholder = st.empty()
-        
-        # Simulate real-time updates
-        if st.button("▶️ Start Live Monitoring", type="primary"):
-            for i in range(10):
-                with placeholder.container():
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Live Threats", np.random.randint(1, 10))
-                    with col2:
-                        st.metric("Block Rate", f"{np.random.randint(80, 99)}%")
-                    with col3:
-                        st.metric("System Load", f"{np.random.randint(30, 90)}%")
-                    
-        # Simulate new threats
-                    new_threats = [
-                        f"Port scan detected from {np.random.randint(1,255)}.{np.random.randint(1,255)}.x.x",
-                        f"Brute force attempt on user{np.random.randint(1,100)}",
-                        f"DDoS traffic pattern identified",
-                        f"Suspicious file download detected"
-                    ]
-                    
-                    for threat in new_threats[:np.random.randint(1,4)]:
-                        st.warning(f"⚠️ {threat}")
-                    
-                    time.sleep(1)
-        
-        # Security Posture
-        st.subheader("Security Posture Assessment")
-        
-        # Create assessment metrics
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # FIXED GAUGE - Detection Accuracy
-            accuracy = min(95, (len(anomalies) / (len(anomalies) + 5)) * 100)
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=accuracy,
-                title={'text': "Detection Accuracy", 'font': {'color': '#8B0000', 'size': 16}},
-                number={'font': {'size': 32, 'color': '#8B0000', 'weight': 'bold'}},
-                gauge={
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#8B0000'},
-                    'bar': {'color': '#38A169' if accuracy > 80 else '#FF6B35' if accuracy > 60 else '#8B0000'},
-                    'bgcolor': '#F8F5E8',
-                    'borderwidth': 2,
-                    'bordercolor': '#8B0000',
-                    'steps': [
-                        {'range': [0, 60], 'color': '#8B0000'},
-                        {'range': [60, 80], 'color': '#FF6B35'},
-                        {'range': [80, 100], 'color': '#38A169'}
-                    ],
-                    'threshold': {
-                        'line': {'color': '#FFFFFF', 'width': 4},
-                        'thickness': 0.75,
-                        'value': accuracy
-                    }
-                }
-            ))
-            fig.update_layout(
-                height=250,
-                margin=dict(l=10, r=10, t=40, b=10),
-                font=dict(color='#8B0000', family='Segoe UI'),
-                paper_bgcolor='#F8F5E8'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # FIXED GAUGE - Response Time
-            response_time = np.random.randint(50, 200)
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=response_time,
-                title={'text': "Avg Response Time (ms)", 'font': {'color': '#8B0000', 'size': 16}},
-                number={'font': {'size': 32, 'color': '#8B0000', 'weight': 'bold'}},
-                gauge={
-                    'axis': {'range': [0, 300], 'tickwidth': 1, 'tickcolor': '#8B0000'},
-                    'bar': {'color': '#38A169' if response_time < 100 else '#FF6B35' if response_time < 200 else '#8B0000'},
-                    'bgcolor': '#F8F5E8',
-                    'borderwidth': 2,
-                    'bordercolor': '#8B0000',
-                    'steps': [
-                        {'range': [0, 100], 'color': '#38A169'},
-                        {'range': [100, 200], 'color': '#FF6B35'},
-                        {'range': [200, 300], 'color': '#8B0000'}
-                    ],
-                    'threshold': {
-                        'line': {'color': '#FFFFFF', 'width': 4},
-                        'thickness': 0.75,
-                        'value': response_time
-                    }
-                }
-            ))
-            fig.update_layout(
-                height=250,
-                margin=dict(l=10, r=10, t=40, b=10),
-                font=dict(color='#8B0000', family='Segoe UI'),
-                paper_bgcolor='#F8F5E8'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col3:
-            # FIXED GAUGE - System Health
-            health = np.random.randint(70, 99)
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=health,
-                title={'text': "System Health", 'font': {'color': '#8B0000', 'size': 16}},
-                number={'font': {'size': 32, 'color': '#8B0000', 'weight': 'bold'}},
-                gauge={
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#8B0000'},
-                    'bar': {'color': '#38A169' if health > 80 else '#FF6B35' if health > 60 else '#8B0000'},
-                    'bgcolor': '#F8F5E8',
-                    'borderwidth': 2,
-                    'bordercolor': '#8B0000',
-                    'steps': [
-                        {'range': [0, 60], 'color': '#8B0000'},
-                        {'range': [60, 80], 'color': '#FF6B35'},
-                        {'range': [80, 100], 'color': '#38A169'}
-                    ],
-                    'threshold': {
-                        'line': {'color': '#FFFFFF', 'width': 4},
-                        'thickness': 0.75,
-                        'value': health
-                    }
-                }
-            ))
-            fig.update_layout(
-                height=250,
-                margin=dict(l=10, r=10, t=40, b=10),
-                font=dict(color='#8B0000', family='Segoe UI'),
-                paper_bgcolor='#F8F5E8'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Recent Activity Log
-        st.subheader("📋 Recent Activity Log")
-        
-        # Create activity log
-        activities = []
-        for i in range(10):
-            actions = [
-                f"Blocked threat from IP 192.168.{np.random.randint(1,255)}.{np.random.randint(1,255)}",
-                f"Detected anomaly in user login patterns",
-                f"Updated firewall rules for port {np.random.choice([80,443,22,3389])}",
-                f"AI analysis completed for {np.random.choice(['DDoS','Brute Force','Malware'])} threat",
-                f"System scan completed - {np.random.randint(0,5)} threats found"
-            ]
-            activities.append({
-                'Time': f"{np.random.randint(0,24):02d}:{np.random.randint(0,60):02d}",
-                'Activity': np.random.choice(actions),
-                'Severity': np.random.choice(['Low', 'Medium', 'High', 'Critical'])
-            })
-        
-        activity_df = pd.DataFrame(activities)
-        
-        # Color code severity
-        def color_severity(val):
-            if val == 'Critical':
-                return 'background-color: rgba(139, 0, 0, 0.3); color: #8B0000; font-weight: bold'
-            elif val == 'High':
-                return 'background-color: rgba(255, 107, 53, 0.2); color: #8B0000'
-            elif val == 'Medium':
-                return 'background-color: rgba(56, 161, 105, 0.2); color: #8B0000'
-            else:
-                return 'background-color: rgba(46, 196, 182, 0.2); color: #8B0000'
-        
-        st.dataframe(
-            activity_df.style.applymap(color_severity, subset=['Severity']),
-            use_container_width=True,
-            height=300
-        )
-        
-        # Export Options
-        st.subheader("📤 Export & Reports")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("📊 Generate Report", use_container_width=True):
-                report_data = {
-                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'total_records': len(results),
-                    'anomalies_detected': len(anomalies),
-                    'threats_blocked': len(blocked),
-                    'detection_accuracy': f"{accuracy:.1f}%",
-                    'system_health': f"{health}%",
-                    'top_threats': [r['llm_analysis']['type'] for r in st.session_state.llm_results[:3]] if st.session_state.llm_results else []
-                }
-                
-                st.download_button(
-                    label="⬇️ Download JSON Report",
-                    data=json.dumps(report_data, indent=2),
-                    file_name=f"cybershield_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                    mime="application/json",
-                    use_container_width=True
-                )
-        
-        with col2:
-            # Export anomalies to CSV
-            if anomalies:
-                anomaly_df = pd.DataFrame([
-                    {
-                        'ID': a['index'],
-                        'Anomaly_Score': a['anomaly_score'],
-                        'Source_IP': a['original_data'].get('source_ip', 'N/A'),
-                        'Blocked': a.get('blocked', False),
-                        'Suspicious_Features': ', '.join(a['suspicious_features'])
-                    }
-                    for a in anomalies
-                ])
-                
-                csv = anomaly_df.to_csv(index=False)
-                st.download_button(
-                    label="📈 Export Anomalies CSV",
-                    data=csv,
-                    file_name="detected_anomalies.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-        
-        with col3:
-            if st.button("🖨️ Print Summary", use_container_width=True):
-                summary = f"""
-                ===== CYBERSHIELD AI REPORT =====
-                Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                
-                📊 SYSTEM OVERVIEW:
-                • Total Records: {len(results)}
-                • Anomalies Detected: {len(anomalies)}
-                • Threats Blocked: {len(blocked)}
-                • Detection Accuracy: {accuracy:.1f}%
-                • System Health: {health}%
-                
-                ⚠️ TOP THREATS:
-                """
-                if st.session_state.llm_results:
-                    for i, r in enumerate(st.session_state.llm_results[:3], 1):
-                        summary += f"\n{i}. {r['llm_analysis']['type']} ({r['llm_analysis']['risk']} Risk)"
-                
-                summary += "\n\n✅ RECOMMENDATIONS:"
-                summary += "\n1. Review blocked IP addresses regularly"
-                summary += "\n2. Update threat signatures weekly"
-                summary += "\n3. Monitor system performance metrics"
-                summary += "\n4. Conduct regular security audits"
-                
-                st.code(summary, language="text")
-                st.success("Report generated successfully!")
-    
-    else:
-        # Dashboard placeholder when no detection run
+        st.info("**Sample Analysis (Demo Mode)**")
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #E8DFC5, #D4C9A8); 
-                    padding: 40px; border-radius: 12px; border: 3px solid #8B0000;
-                    text-align: center; margin: 20px 0;">
-            <h2 style="color: #8B0000;">📊 Dashboard Ready</h2>
-            <p style="color: #8B0000; font-size: 1.1rem;">
-            Run anomaly detection to view system metrics, performance analytics, 
-            and generate comprehensive security reports.
-            </p>
-            <div style="margin-top: 30px;">
-                <div style="display: inline-block; padding: 15px 30px; 
-                          background: #8B0000; color: white; border-radius: 8px;
-                          font-weight: bold; font-size: 1.2rem;">
-                    Click "Run Detection" in sidebar to begin
-                </div>
-            </div>
+        <div class="llm-response">
+        🚨 **Threat Analysis Report** (Demo Mode)
+        
+        **Potential Threat:** Port Scanning Activity
+        **Risk Level:** 🔴 High
+        
+        **Technical Analysis:**
+        - Multiple connection attempts to privileged ports
+        - Unusual packet size distribution
+        - Suspicious geographic origin pattern
+        
+        **Recommended Actions:**
+        1. Block source IP temporarily
+        2. Increase logging for this IP range
+        3. Check for lateral movement attempts
         </div>
         """, unsafe_allow_html=True)
+        
+    else:
+        analyzer = st.session_state.llm_analyzer
+        
+        if not st.session_state.results:
+            st.info("Run anomaly detection first in the Detection tab")
+        else:
+            st.success("✅ Gemma 7B LLM Initialized and Ready")
+            
+            # Single Anomaly Analysis
+            st.subheader("Analyze Single Anomaly")
+            
+            anomalies = [r for r in st.session_state.results if r['is_anomaly'] == 1]
+            if anomalies:
+                anomaly_options = {f"Anomaly {a['index']} (Score: {a['anomaly_score']:.3f}, IP: {a['original_data'].get('source_ip', 'N/A')})": a 
+                                 for a in anomalies[:10]}
+                
+                selected_desc = st.selectbox("Select an anomaly to analyze:", 
+                                           list(anomaly_options.keys()))
+                
+                if selected_desc:
+                    selected_anomaly = anomaly_options[selected_desc]
+                    
+                    if st.button("Analyze with Gemma 7B", type="primary", use_container_width=True):
+                        with st.spinner("🧠 Gemma 7B analyzing anomaly..."):
+                            analysis = analyzer.analyze_anomaly(selected_anomaly)
+                            
+                            # Store in session state
+                            st.session_state.llm_results[selected_anomaly['index']] = {
+                                'analysis': analysis,
+                                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                    
+                    # Show previous analysis if exists
+                    if selected_anomaly['index'] in st.session_state.llm_results:
+                        st.markdown("---")
+                        st.markdown(f"**Analysis:** {st.session_state.llm_results[selected_anomaly['index']]['timestamp']}")
+                        
+                        # Extract risk level from analysis
+                        analysis_text = st.session_state.llm_results[selected_anomaly['index']]['analysis']
+                        
+                        # Parse risk level from analysis (first line after RISK_LEVEL:)
+                        risk_level = "Medium"  # Default
+                        if "RISK_LEVEL:" in analysis_text:
+                            risk_line = analysis_text.split("RISK_LEVEL:")[1].split("\n")[0].strip()
+                            risk_level = risk_line
+                        
+                        # Create gauge chart
+                        st.markdown("### 🎯 Threat Level Gauge")
+                        gauge_fig = create_threat_gauge(risk_level, abs(selected_anomaly['anomaly_score']))
+                        st.plotly_chart(gauge_fig, use_container_width=True)
+                        
+                        # Display the analysis (without RISK_LEVEL line)
+                        clean_analysis = analysis_text.replace("RISK_LEVEL: " + risk_level, "").strip()
+                        st.markdown(f"""
+                        <div class="llm-response">
+                        {clean_analysis}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # ADDED: Block option in Gemma 7B analysis
+                        st.markdown("### 🚫 Threat Mitigation")
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            block_reason = st.selectbox(
+                                "Select block reason:",
+                                ["Suspicious activity", "DDoS pattern", "Port scanning", 
+                                 "Brute force attempt", "Malware signature", "Unauthorized access",
+                                 "High risk threat identified by AI"],
+                                key=f"block_reason_{selected_anomaly['index']}"
+                            )
+                        
+                        with col2:
+                            # Check if already blocked
+                            is_already_blocked = selected_anomaly.get('blocked', False)
+                            
+                            if is_already_blocked:
+                                st.warning(f"✅ Already blocked")
+                                if st.button(f"Unblock", key=f"unblock_from_analysis_{selected_anomaly['index']}", 
+                                           type="secondary", use_container_width=True):
+                                    unblock_item(selected_anomaly['index'])
+                                    st.success(f"Unblocked anomaly #{selected_anomaly['index']}")
+                                    st.rerun()
+                            else:
+                                if st.button("🚫 BLOCK THIS THREAT", type="primary", use_container_width=True,
+                                           help=f"Block anomaly #{selected_anomaly['index']} from {selected_anomaly['original_data'].get('source_ip', 'Unknown')}"):
+                                    block_item(selected_anomaly['index'], f"{block_reason} (AI Recommended)")
+                                    st.success(f"✅ Blocked anomaly #{selected_anomaly['index']} from {selected_anomaly['original_data'].get('source_ip', 'Unknown')}")
+                                    st.rerun()
+
+with tab4:
+    st.markdown("### 📈 REAL-TIME DASHBOARD")
+    
+    if not st.session_state.results:
+        st.info("Run anomaly detection first to see dashboard metrics")
+    else:
+        results = st.session_state.results
+        anomalies = [r for r in results if r['is_anomaly'] == 1]
+        
+        # Top Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Threats", len(anomalies), 
+                     delta=f"{len(anomalies)/len(results)*100:.1f}%", 
+                     delta_color="inverse")
+        with col2:
+            blocked = len(st.session_state.blocked_items)
+            st.metric("Blocked", blocked, 
+                     delta=f"{blocked/len(anomalies)*100:.1f}%" if anomalies else "0%")
+        with col3:
+            llm_status = "🟢 Active" if st.session_state.gemma_initialized else "⚪ Offline"
+            st.metric("LLM Status", llm_status, "Gemma 7B")
+        with col4:
+            st.metric("System Health", "🟢 Online", "Operational")
 
 # ========== FOOTER ==========
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #8B0000; padding: 20px;">
-    <p style="font-weight: bold; font-size: 1.1rem;">
-    🛡️ CYBERSHIELD AI - Advanced Anomaly Detection System
+    <p style="font-size: 0.9rem;">
+    🛡️ <strong>CyberShield AI</strong> | 
+    Isolation Forest + Gemma 7B LLM | 
+    Real-time Anomaly Detection System
     </p>
-    <p style="font-size: 0.9rem; opacity: 0.8;">
-    Developed by Team 1 - VVIT | Using Isolation Forest & AI Analysis | 
-    Last Updated: December 2024
+    <p style="font-size: 0.8rem; color: #660000;">
+    Anomaly Detection: Custom Isolation Forest | AI Analysis: Google Gemma 7B
     </p>
-    <div style="display: flex; justify-content: center; gap: 20px; margin-top: 15px;">
-        <div style="padding: 8px 16px; background: rgba(139, 0, 0, 0.1); 
-                    border-radius: 6px; border: 1px solid #8B0000;">
-            ⚡ Real-time Monitoring
-        </div>
-        <div style="padding: 8px 16px; background: rgba(139, 0, 0, 0.1); 
-                    border-radius: 6px; border: 1px solid #8B0000;">
-            🤖 AI Threat Analysis
-        </div>
-        <div style="padding: 8px 16px; background: rgba(139, 0, 0, 0.1); 
-                    border-radius: 6px; border: 1px solid #8B0000;">
-            🚫 Automated Blocking
-        </div>
-    </div>
 </div>
 """, unsafe_allow_html=True)
