@@ -9,6 +9,8 @@ import os
 from datetime import datetime
 import google.generativeai as genai # type: ignore
 from dotenv import load_dotenv
+import re
+from difflib import get_close_matches
 
 # ========== LOAD ENVIRONMENT VARIABLES ==========
 load_dotenv()
@@ -68,17 +70,16 @@ def load_css():
         font-weight: 600 !important;
     }
     /* ========== LLM ANALYSIS RESPONSE ========== */
-    /* ========== LLM ANALYSIS RESPONSE ========== */
-.llm-response {
-    background: linear-gradient(135deg, var(--vanilla-light), var(--vanilla-medium)) !important;  /* CHANGED TO VANILLA */
-    border: 2px solid var(--blood-red) !important;  /* CHANGED BORDER TO BLOOD RED */
-    border-radius: 10px !important;
-    padding: 20px !important;
-    margin: 15px 0 !important;
-    color: var(--blood-red) !important;  /* CHANGED TO BLOOD RED */
-    font-size: 1rem !important;
-    line-height: 1.6 !important;
-}
+    .llm-response {
+        background: linear-gradient(135deg, var(--vanilla-light), var(--vanilla-medium)) !important;
+        border: 2px solid var(--blood-red) !important;
+        border-radius: 10px !important;
+        padding: 20px !important;
+        margin: 15px 0 !important;
+        color: var(--blood-red) !important;
+        font-size: 1rem !important;
+        line-height: 1.6 !important;
+    }
     .gauge-container {
         background: linear-gradient(135deg, #F8F5E8, #E8DFC5) !important;
         border: 2px solid #8B0000 !important;
@@ -105,6 +106,183 @@ def load_css():
         transform: scale(1.05) !important;
         box-shadow: 0 4px 12px rgba(139, 0, 0, 0.4) !important;
     }
+    /* ========== ENHANCED CHAT STYLES ========== */
+    .chat-header {
+        background: linear-gradient(135deg, #8B0000, #660000);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px 10px 0 0;
+        margin: -20px -20px 20px -20px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 1.2rem;
+        box-shadow: 0 4px 12px rgba(139, 0, 0, 0.3);
+    }
+
+    .message-wrapper {
+        display: flex;
+        margin-bottom: 15px;
+        animation: fadeInUp 0.3s ease-out;
+    }
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .user-message-wrapper {
+        justify-content: flex-end;
+    }
+    .ai-message-wrapper {
+        justify-content: flex-start;
+    }
+    .message-bubble {
+        max-width: 70%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        position: relative;
+        word-wrap: break-word;
+        line-height: 1.5;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        border: 2px solid;
+    }
+    /* USER MESSAGES: Vanilla background with Blood Red text */
+    .user-message {
+        background: linear-gradient(135deg, #F8F5E8, #E8DFC5) !important;
+        color: #8B0000 !important;
+        border-color: #8B0000 !important;
+        border-bottom-right-radius: 4px;
+    }
+    /* AI MESSAGES: Blood Red background with Vanilla text */
+    .ai-message {
+        background: linear-gradient(135deg, #8B0000, #660000) !important;
+        color: #F8F5E8 !important;
+        border-color: #660000 !important;
+        border-bottom-left-radius: 4px;
+    }
+    .message-time {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        margin-top: 5px;
+        text-align: right;
+    }
+    .chat-input-area {
+        display: flex;
+        gap: 10px;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 10px;
+        border: 2px solid #8B0000;
+        box-shadow: 0 4px 12px rgba(139, 0, 0, 0.2);
+    }
+    .chat-input {
+        flex-grow: 1;
+        padding: 12px 15px;
+        border: 2px solid #D4C9A8;
+        border-radius: 8px;
+        font-size: 1rem;
+        background: white;
+        color: #8B0000;
+        transition: all 0.3s;
+    }
+    .chat-input:focus {
+        outline: none;
+        border-color: #8B0000;
+        box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1);
+    }
+    .send-button {
+        background: linear-gradient(135deg, #8B0000, #660000);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0 25px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 80px;
+    }
+    .send-button:hover {
+        background: linear-gradient(135deg, #660000, #450000);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(139, 0, 0, 0.3);
+    }
+    .quick-actions {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+    .quick-action-btn {
+        background: linear-gradient(135deg, #E8DFC5, #D4C9A8);
+        color: #8B0000;
+        border: 2px solid #8B0000;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 600;
+    }
+    .quick-action-btn:hover {
+        background: linear-gradient(135deg, #8B0000, #660000);
+        color: white;
+        transform: translateY(-2px);
+    }
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 10px 15px;
+        background: linear-gradient(135deg, #8B0000, #660000);
+        color: #F8F5E8;
+        border-radius: 18px;
+        width: fit-content;
+        margin: 10px 0;
+        border: 2px solid #660000;
+    }
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        background: #F8F5E8;
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+    .typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    .typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    @keyframes typing {
+        0%, 60%, 100% {
+            transform: translateY(0);
+        }
+        30% {
+            transform: translateY(-5px);
+        }
+    }
+    /* Scrollbar styling */
+    .chat-messages-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    .chat-messages-container::-webkit-scrollbar-track {
+        background: #F8F5E8;
+        border-radius: 4px;
+    }
+    .chat-messages-container::-webkit-scrollbar-thumb {
+        background: #8B0000;
+        border-radius: 4px;
+    }
+    .chat-messages-container::-webkit-scrollbar-thumb:hover {
+        background: #660000;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -127,12 +305,22 @@ if 'gemma_api_key' not in st.session_state:
     st.session_state.gemma_api_key = os.getenv("GEMINI_API_KEY", "")
 if 'gemma_initialized' not in st.session_state:
     st.session_state.gemma_initialized = False
+# ========== ADDED: CHAT HISTORY ==========
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'chat_analyzer' not in st.session_state:
+    st.session_state.chat_analyzer = None
+if 'is_typing' not in st.session_state:
+    st.session_state.is_typing = False
+# ========== ADDED: Store uploaded data info ==========
+if 'current_dataset' not in st.session_state:
+    st.session_state.current_dataset = None
+if 'data_source_info' not in st.session_state:
+    st.session_state.data_source_info = "Sample Dataset"
 
-# ========== HELPER FUNCTION FOR GAUGE CHART ==========
 # ========== HELPER FUNCTION FOR GAUGE CHART ==========
 def create_threat_gauge(risk_level, anomaly_score):
     """Create a gauge chart for threat level"""
-    # Map risk level to value (0-100)
     risk_mapping = {
         "Low": 25,
         "Medium": 50,
@@ -140,22 +328,20 @@ def create_threat_gauge(risk_level, anomaly_score):
         "Critical": 90
     }
     
-    # Get value for gauge
     value = risk_mapping.get(risk_level, 50)
     
-    # Determine colors based on risk level
     if risk_level == "Low":
         bar_color = 'green'
         threshold_color = "green"
-        risk_color = "#10B981"  # Green
+        risk_color = "#10B981"
     elif risk_level == "Medium":
         bar_color = 'yellow'
         threshold_color = "orange"
-        risk_color = "#F59E0B"  # Yellow
-    else:  # High or Critical
+        risk_color = "#F59E0B"
+    else:
         bar_color = 'red'
         threshold_color = "red"
-        risk_color = "#DC2626"  # Red
+        risk_color = "#DC2626"
     
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -170,9 +356,9 @@ def create_threat_gauge(risk_level, anomaly_score):
             'borderwidth': 2,
             'bordercolor': "#8B0000",
             'steps': [
-                {'range': [0, 33], 'color': '#D1FAE5'},  # Light green
-                {'range': [33, 66], 'color': '#FEF3C7'}, # Light yellow
-                {'range': [66, 100], 'color': '#FEE2E2'} # Light red
+                {'range': [0, 33], 'color': '#D1FAE5'},
+                {'range': [33, 66], 'color': '#FEF3C7'},
+                {'range': [66, 100], 'color': '#FEE2E2'}
             ],
             'threshold': {
                 'line': {'color': threshold_color, 'width': 4},
@@ -191,7 +377,7 @@ def create_threat_gauge(risk_level, anomaly_score):
     
     return fig
 
-# ========== GEMMA 7B INTEGRATION ==========
+# ========== ENHANCED GEMMA 7B INTEGRATION ==========
 class GemmaLLMAnalyzer:
     def __init__(self, api_key=None):
         self.api_key = api_key or st.session_state.gemma_api_key
@@ -206,14 +392,13 @@ class GemmaLLMAnalyzer:
         try:
             genai.configure(api_key=self.api_key)
             
-            # Try Gemma 3 models (you have access to these!)
             gemma_models = [
-                'gemma-3-4b-it',    # Good balance of speed/capability
-                'gemma-3-12b-it',   # More capable
-                'gemma-3-1b-it',    # Fastest
-                'gemma-3-27b-it',   # Most capable
-                'gemini-2.0-flash', # Alternative if Gemma fails
-                'gemini-pro-latest' # Another alternative
+                'gemma-3-4b-it',
+                'gemma-3-12b-it',
+                'gemma-3-1b-it',
+                'gemma-3-27b-it',
+                'gemini-2.0-flash',
+                'gemini-pro-latest'
             ]
             
             last_error = None
@@ -223,7 +408,6 @@ class GemmaLLMAnalyzer:
                     
                     self.model = genai.GenerativeModel(model_name)
                     
-                    # Test with a simple request
                     test_response = self.model.generate_content(
                         "Say 'Hello' if you're working.",
                         generation_config=genai.types.GenerationConfig(
@@ -234,8 +418,6 @@ class GemmaLLMAnalyzer:
                     
                     self.model_name = model_name
                     st.session_state.gemma_initialized = True
-                    
-                    # Show success in sidebar
                     st.sidebar.success(f"✅ Using: {model_name}")
                     
                     return True, f"✅ Gemma 3 Model Initialized: {model_name}"
@@ -255,7 +437,6 @@ class GemmaLLMAnalyzer:
             return "Gemma 3 model not initialized"
         
         try:
-            # Format anomaly data
             anomaly_info = f"""
             CYBERSECURITY ANOMALY REPORT:
             
@@ -303,7 +484,6 @@ Keep it brief and action-oriented. No markdown formatting."""
             return response.text
             
         except Exception as e:
-            # Fallback response if AI fails
             risk_level = '🔴 HIGH' if abs(anomaly_data['anomaly_score']) > 0.5 else '🟡 MEDIUM' if abs(anomaly_data['anomaly_score']) > 0.3 else '🟢 LOW'
             return f"""RISK_LEVEL: {risk_level.split()[-1]}
 
@@ -318,6 +498,68 @@ Keep it brief and action-oriented. No markdown formatting."""
 {chr(10).join(['• ' + feat for feat in anomaly_data['suspicious_features'][:3]])}
 
 **Recommended Action:** Monitor activity and consider temporary blocking if pattern continues."""
+    
+    # ========== ENHANCED CHAT FUNCTIONALITY FOR CSV ANALYSIS ==========
+    def chat_response(self, user_message, data_info=None, anomaly_results=None, blocked_items=None):
+        """Generate chat response with context about uploaded CSV data and anomalies"""
+        if not self.model:
+            return "🔧 **I need to be initialized first!**\n\nPlease:\n1. Enter your Google AI API key in the sidebar\n2. Click 'Initialize Gemma LLM'\n3. Then I can help you with cybersecurity analysis!"
+        
+        try:
+            # Create context about current data and anomalies
+            context_info = ""
+            
+            if data_info:
+                context_info += f"\nCurrent Dataset Info:\n• Source: {data_info['source']}\n• Records: {data_info['records']}\n• Columns: {data_info['columns']}\n• Numeric Features: {data_info['numeric']}"
+            
+            if anomaly_results:
+                total_anomalies = sum([1 for r in anomaly_results if r['is_anomaly'] == 1])
+                high_risk = sum([1 for r in anomaly_results if r['anomaly_score'] < -0.5])
+                blocked_count = sum([1 for r in anomaly_results if r.get('blocked', False)])
+                
+                context_info += f"\n\nAnomaly Detection Results:\n• Total Anomalies Found: {total_anomalies}\n• High Risk Threats: {high_risk}\n• Blocked Threats: {blocked_count}"
+                
+                if total_anomalies > 0:
+                    top_anomalies = [r for r in anomaly_results if r['is_anomaly'] == 1][:3]
+                    context_info += "\n\nTop Anomalies:\n"
+                    for i, anomaly in enumerate(top_anomalies[:3], 1):
+                        context_info += f"  {i}. ID {anomaly['index']}: Score {abs(anomaly['anomaly_score']):.3f}, IP: {anomaly['original_data'].get('source_ip', 'N/A')}\n"
+            
+            if blocked_items and len(blocked_items) > 0:
+                context_info += f"\n\nBlocked Threats:\n• Total Blocked: {len(blocked_items)}"
+                for i, item in enumerate(blocked_items[:3], 1):
+                    context_info += f"\n  {i}. IP {item['source_ip']}: {item['reason']}"
+            
+            # Enhanced prompt for cybersecurity analysis
+            prompt = f"""You are CyberShield AI Assistant, a helpful cybersecurity expert for network anomaly detection.
+
+{context_info}
+
+USER QUESTION: "{user_message}"
+
+IMPORTANT INSTRUCTIONS:
+1. If the user asks about the data, anomalies, or threats, use the context provided above
+2. If they ask about specific IPs, ports, or anomalies, reference the anomaly detection results
+3. For cybersecurity questions, provide detailed, accurate information
+4. If data/anomaly info is available, incorporate it into your answer
+5. Be professional but approachable
+6. If you don't have specific data needed, say so and suggest what they should check
+
+Respond naturally and helpfully."""
+
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    max_output_tokens=600,
+                    temperature=0.7,
+                    top_p=0.9
+                )
+            )
+            
+            return response.text
+            
+        except Exception as e:
+            return f"⚠️ **Error:** {str(e)[:200]}"
 
 # ========== ISOLATION FOREST DETECTOR ==========
 class IsolationForestDetector:
@@ -340,7 +582,6 @@ class IsolationForestDetector:
         n_samples = len(df)
         n_anomalies = max(1, int(n_samples * self.contamination))
         
-        # Generate realistic anomaly scores
         np.random.seed(42)
         anomaly_indices = np.random.choice(n_samples, n_anomalies, replace=False)
         
@@ -348,16 +589,13 @@ class IsolationForestDetector:
         for i in range(n_samples):
             is_anomaly = 1 if i in anomaly_indices else 0
             
-            # Generate realistic scores
             if is_anomaly:
                 score = -np.random.uniform(0.3, 0.9)
-                # High anomalies get more negative scores
                 if i % 5 == 0:
                     score = -np.random.uniform(0.7, 1.0)
             else:
                 score = np.random.uniform(0, 0.3)
             
-            # Get suspicious features
             suspicious_features = []
             if is_anomaly and len(self.columns) >= 3:
                 suspicious_features = list(np.random.choice(self.columns, 
@@ -398,7 +636,6 @@ def create_sample_data():
         'country': np.random.choice(['US', 'IN', 'UK', 'DE', 'CN', 'RU', 'BR', 'JP'], n_records)
     }
     
-    # Add anomalies (15%)
     anomaly_indices = np.random.choice(n_records, int(n_records * 0.15), replace=False)
     for idx in anomaly_indices:
         data['packet_size'][idx] = np.random.randint(50000, 65535)
@@ -415,11 +652,10 @@ def block_item(item_id, reason="Suspicious activity"):
         st.session_state.blocked_items.append({
             'id': item_id,
             'reason': reason,
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'timestamp': datetime.now().strftime("%Y-%m-d %H:%M:%S"),
             'source_ip': st.session_state.results[item_id]['original_data'].get('source_ip', 'Unknown'),
             'anomaly_score': st.session_state.results[item_id]['anomaly_score']
         })
-        # Mark as blocked in results
         st.session_state.results[item_id]['blocked'] = True
         st.session_state.results[item_id]['block_reason'] = reason
         st.session_state.results[item_id]['block_timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -463,14 +699,26 @@ with st.sidebar:
     data_source = st.radio("", ["Sample Dataset", "Upload CSV"], index=0, label_visibility="collapsed")
     
     df = create_sample_data()
+    current_data_source = "Sample Dataset"
+    
     if data_source == "Upload CSV":
         uploaded_file = st.file_uploader("Upload CSV", type=['csv'])
         if uploaded_file:
             try:
                 df = pd.read_csv(uploaded_file)
                 st.success(f"✅ Loaded: {len(df)} records")
-            except:
-                st.error("❌ Error loading file")
+                current_data_source = f"Uploaded: {uploaded_file.name}"
+                st.session_state.current_dataset = df
+                st.session_state.data_source_info = current_data_source
+            except Exception as e:
+                st.error(f"❌ Error loading file: {str(e)}")
+        else:
+            if st.session_state.current_dataset is not None:
+                df = st.session_state.current_dataset
+                current_data_source = st.session_state.data_source_info
+    else:
+        st.session_state.current_dataset = df
+        st.session_state.data_source_info = "Sample Dataset"
     
     st.success(f"📊 Data ready: {len(df)} records")
     
@@ -485,7 +733,7 @@ with st.sidebar:
     
     st.divider()
     
-    # GEMMA 7B SETTINGS - ADDED
+    # GEMMA 7B SETTINGS
     st.markdown("### 🤖 GEMMA 7B SETTINGS")
     
     api_key = st.text_input("Google AI API Key", 
@@ -505,6 +753,7 @@ with st.sidebar:
                 success, message = analyzer.initialize()
                 if success:
                     st.session_state.llm_analyzer = analyzer
+                    st.session_state.chat_analyzer = analyzer
                     st.success(message)
                 else:
                     st.error(message)
@@ -525,7 +774,7 @@ with st.sidebar:
     
     st.divider()
     
-    # BLOCKED ITEMS PANEL - FUCKING SHOWS BLOCKED SHIT
+    # BLOCKED ITEMS PANEL
     st.markdown("### 🚫 BLOCKED THREATS")
     if st.session_state.blocked_items:
         st.markdown(f"""
@@ -533,7 +782,7 @@ with st.sidebar:
             <h4 style="color: #DC2626; margin-top: 0;">Blocked Items: {len(st.session_state.blocked_items)}</h4>
         """, unsafe_allow_html=True)
         
-        for item in st.session_state.blocked_items[:10]:  # Show last 10
+        for item in st.session_state.blocked_items[:10]:
             st.markdown(f"""
             <div class="blocked-item">
                 <div style="font-size: 0.9rem;">
@@ -545,7 +794,6 @@ with st.sidebar:
             </div>
             """, unsafe_allow_html=True)
             
-            # Unblock button
             if st.button(f"Unblock {item['source_ip']}", key=f"unblock_{item['id']}", 
                         type="secondary", use_container_width=True):
                 unblock_item(item['id'])
@@ -574,12 +822,11 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ========== MAIN DASHBOARD ==========
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Data", "🔍 Detection", "🤖 Analysis", "📈 Dashboard"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Data", "🔍 Detection", "🤖 Analysis", "💬 AI Chat", "📈 Dashboard"])
 
 with tab1:
     st.markdown("### DATASET OVERVIEW")
     
-    # Metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Records", len(df), "Data Points")
@@ -591,18 +838,15 @@ with tab1:
     with col4:
         st.metric("Size", f"{df.memory_usage().sum()/1024:.1f} KB", "Memory")
     
-    # Data Preview
     st.subheader("Data Preview")
     st.dataframe(df.head(12), use_container_width=True, height=400)
     
-    # Quick Stats
     with st.expander("📈 Statistical Summary", expanded=True):
         st.dataframe(df.describe(), use_container_width=True)
 
 with tab2:
     st.markdown("### ANOMALY DETECTION ENGINE")
     
-    # Run Detection
     if st.session_state.run_detection:
         with st.spinner("🔄 Training Isolation Forest Model..."):
             try:
@@ -623,13 +867,11 @@ with tab2:
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
     
-    # Show Results
     if st.session_state.results:
         results = st.session_state.results
         anomalies = [r for r in results if r['is_anomaly'] == 1]
         total = len(results)
         
-        # Metrics with FUCKING SHADOWS
         st.markdown("---")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -644,10 +886,8 @@ with tab2:
             blocked = sum([1 for r in results if r.get('blocked', False)])
             st.metric("🚫 Blocked", blocked)
         
-        # Anomaly List with BLOCK BUTTONS
         st.subheader("Detected Anomalies")
         if anomalies:
-            # Selection for blocking
             anomaly_options = [f"Anomaly {a['index']} | Score: {a['anomaly_score']:.3f} | IP: {a['original_data'].get('source_ip', 'N/A')}" 
                              for a in anomalies[:20]]
             selected = st.multiselect("Select anomalies to block:", anomaly_options, 
@@ -668,7 +908,6 @@ with tab2:
                         st.success(f"Blocked {len(selected)} items!")
                         st.rerun()
             
-            # Display anomalies table
             display_data = []
             for anomaly in anomalies[:15]:
                 is_blocked = anomaly.get('blocked', False)
@@ -685,12 +924,10 @@ with tab2:
             anomaly_df = pd.DataFrame(display_data)
             st.dataframe(anomaly_df, use_container_width=True, height=350)
             
-            # FUCKING GRAPHS THAT WORK
             st.subheader("Visual Analytics")
             col1, col2 = st.columns(2)
             
             with col1:
-                # HISTOGRAM
                 scores = [r['anomaly_score'] for r in results]
                 fig1 = go.Figure()
                 fig1.add_trace(go.Histogram(
@@ -713,17 +950,16 @@ with tab2:
                 st.plotly_chart(fig1, use_container_width=True)
             
             with col2:
-                # SCATTER PLOT
                 indices = [r['index'] for r in results]
                 scores = [r['anomaly_score'] for r in results]
                 colors = []
                 for r in results:
                     if r.get('blocked', False):
-                        colors.append('#DC2626')  # Red for blocked
+                        colors.append('#DC2626')
                     elif r['is_anomaly'] == 1:
-                        colors.append('#8B0000')  # Dark red for anomalies
+                        colors.append('#8B0000')
                     else:
-                        colors.append('#2EC4B6')  # Teal for normal
+                        colors.append('#2EC4B6')
                 
                 fig2 = go.Figure()
                 fig2.add_trace(go.Scatter(
@@ -740,7 +976,6 @@ with tab2:
                     hovertemplate='Index: %{x}<br>Score: %{y:.3f}<extra></extra>'
                 ))
                 
-                # Add threshold lines
                 fig2.add_hline(y=-0.3, line_dash="dash", line_color="#FF6B35", 
                               annotation_text="Anomaly Threshold")
                 fig2.add_hline(y=-0.5, line_dash="dot", line_color="#DC2626",
@@ -798,7 +1033,6 @@ with tab3:
         else:
             st.success("✅ Gemma 7B LLM Initialized and Ready")
             
-            # Single Anomaly Analysis
             st.subheader("Analyze Single Anomaly")
             
             anomalies = [r for r in st.session_state.results if r['is_anomaly'] == 1]
@@ -816,32 +1050,26 @@ with tab3:
                         with st.spinner("🧠 Gemma 7B analyzing anomaly..."):
                             analysis = analyzer.analyze_anomaly(selected_anomaly)
                             
-                            # Store in session state
                             st.session_state.llm_results[selected_anomaly['index']] = {
                                 'analysis': analysis,
                                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
                     
-                    # Show previous analysis if exists
                     if selected_anomaly['index'] in st.session_state.llm_results:
                         st.markdown("---")
                         st.markdown(f"**Analysis:** {st.session_state.llm_results[selected_anomaly['index']]['timestamp']}")
                         
-                        # Extract risk level from analysis
                         analysis_text = st.session_state.llm_results[selected_anomaly['index']]['analysis']
                         
-                        # Parse risk level from analysis (first line after RISK_LEVEL:)
-                        risk_level = "Medium"  # Default
+                        risk_level = "Medium"
                         if "RISK_LEVEL:" in analysis_text:
                             risk_line = analysis_text.split("RISK_LEVEL:")[1].split("\n")[0].strip()
                             risk_level = risk_line
                         
-                        # Create gauge chart
                         st.markdown("### 🎯 Threat Level Gauge")
                         gauge_fig = create_threat_gauge(risk_level, abs(selected_anomaly['anomaly_score']))
                         st.plotly_chart(gauge_fig, use_container_width=True)
                         
-                        # Display the analysis (without RISK_LEVEL line)
                         clean_analysis = analysis_text.replace("RISK_LEVEL: " + risk_level, "").strip()
                         st.markdown(f"""
                         <div class="llm-response">
@@ -849,7 +1077,6 @@ with tab3:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # ADDED: Block option in Gemma 7B analysis
                         st.markdown("### 🚫 Threat Mitigation")
                         col1, col2 = st.columns([3, 1])
                         with col1:
@@ -862,7 +1089,6 @@ with tab3:
                             )
                         
                         with col2:
-                            # Check if already blocked
                             is_already_blocked = selected_anomaly.get('blocked', False)
                             
                             if is_already_blocked:
@@ -879,7 +1105,234 @@ with tab3:
                                     st.success(f"✅ Blocked anomaly #{selected_anomaly['index']} from {selected_anomaly['original_data'].get('source_ip', 'Unknown')}")
                                     st.rerun()
 
+# ========== ENHANCED AI CHAT TAB ==========
 with tab4:
+    st.markdown("### 🤖 CYBER SHIELD AI CHAT ASSISTANT")
+    
+    # Quick Action Buttons with data-specific prompts
+        # Quick Action Buttons - They actually work when clicked!
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("📊 Data Summary", use_container_width=True, key="data_btn"):
+            # Set the question and trigger immediate submission
+            question = "Can you summarize the current dataset and any detected anomalies?"
+            st.session_state.chat_history.append({
+                'role': 'user',
+                'message': question,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.is_typing = True
+            st.rerun()
+    
+    with col2:
+        if st.button("🔍 Top Threats", use_container_width=True, key="threats_btn"):
+            question = "What are the top security threats in the current data?"
+            st.session_state.chat_history.append({
+                'role': 'user',
+                'message': question,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.is_typing = True
+            st.rerun()
+    
+    with col3:
+        if st.button("🛡️ Blocked Items", use_container_width=True, key="blocked_btn"):
+            question = "Show me the blocked threats and why they were blocked"
+            st.session_state.chat_history.append({
+                'role': 'user',
+                'message': question,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.is_typing = True
+            st.rerun()
+    
+    with col4:
+        if st.button("📈 Analysis Help", use_container_width=True, key="analysis_btn"):
+            question = "Help me analyze the anomaly detection results"
+            st.session_state.chat_history.append({
+                'role': 'user',
+                'message': question,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.is_typing = True
+            st.rerun()
+    
+    with col5:
+        if st.button("💡 Recommendations", use_container_width=True, key="rec_btn"):
+            question = "What security recommendations do you have for my data?"
+            st.session_state.chat_history.append({
+                'role': 'user',
+                'message': question,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.is_typing = True
+            st.rerun()
+    
+    # Chat Messages Container
+    st.markdown('<div class="chat-messages-container">', unsafe_allow_html=True)
+    
+    # Welcome message if no history
+            # Welcome message if no history
+    if not st.session_state.chat_history:
+            st.markdown("""
+            <div style="background: #F8F5E8; border: 2px solid #8B0000; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+                <div style="color: #8B0000;">
+                    🛡️ <strong>Hello! I'm CyberShield AI Assistant!</strong> 🤖<br><br>
+                    
+                    I'm here to help you analyze your cybersecurity data! I can:
+                    
+                    • Explain anomalies in your uploaded CSV files 🔍
+                    • Analyze threat patterns in your data 📊
+                    • Help you understand detection results 💡
+                    • Provide security recommendations based on your data 🛡️
+                    • Answer questions about blocked threats 🚫
+                    
+                    Ask me questions about your data, anomalies, or cybersecurity!
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # Display chat history
+        for i, msg in enumerate(st.session_state.chat_history):
+            if msg['role'] == 'user':
+                st.markdown(f"""
+                <div class="message-wrapper user-message-wrapper">
+                    <div class="message-bubble user-message">
+                        {msg['message']}
+                        <div class="message-time">{msg['timestamp']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="message-wrapper ai-message-wrapper">
+                    <div class="message-bubble ai-message">
+                        {msg['message']}
+                        <div class="message-time">{msg['timestamp']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Show typing indicator if AI is thinking
+        if st.session_state.get('is_typing', False):
+            st.markdown("""
+            <div class="message-wrapper ai-message-wrapper">
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <span style="margin-left: 10px;">Analyzing your data...</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close chat-messages-container
+    
+    # Chat Input Area
+       # Chat Input Area - SIMPLIFIED with Enter key support
+    st.markdown("---")
+    
+    # Create a form for the chat input
+    with st.form(key="chat_form", clear_on_submit=True):
+        col_input, col_send = st.columns([4, 1])
+        
+        with col_input:
+            user_input = st.text_input(
+                "Type your message",
+                value="",
+                key="chat_input_field",
+                label_visibility="collapsed",
+                placeholder="Ask about your data, anomalies, or cybersecurity... (Press Enter or click Send)"
+            )
+        
+        with col_send:
+            submit_button = st.form_submit_button("Send", type="primary", use_container_width=True)
+    
+    # Handle form submission (works with Enter key or Send button)
+    if submit_button and user_input.strip():
+        # Add user message to history
+        st.session_state.chat_history.append({
+            'role': 'user',
+            'message': user_input.strip(),
+            'timestamp': datetime.now().strftime("%H:%M:%S")
+        })
+        
+        # Set typing indicator
+        st.session_state.is_typing = True
+        
+        # Clear the input field
+        st.session_state.user_message_input = ""
+        
+        # Rerun to show typing indicator
+        st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)  # Close chat-input-area
+    
+    # Clear Chat Button
+    if st.session_state.chat_history:
+        if st.button("🗑️ Clear Chat History", type="secondary", use_container_width=True, key="clear_chat_btn"):
+            st.session_state.chat_history = []
+            st.rerun()
+    
+
+# ========== AFTER RERUN: Generate AI response ==========
+if st.session_state.get('is_typing', False) and st.session_state.chat_history:
+    # Get the last user message
+    last_message = st.session_state.chat_history[-1]['message']
+    
+    # Prepare data context for the AI
+    data_info = None
+    if st.session_state.current_dataset is not None:
+        df_current = st.session_state.current_dataset
+        data_info = {
+            'source': st.session_state.data_source_info,
+            'records': len(df_current),
+            'columns': len(df_current.columns),
+            'numeric': len(df_current.select_dtypes(include=[np.number]).columns)
+        }
+    
+    # Generate AI response
+    if 'chat_analyzer' in st.session_state and st.session_state.gemma_initialized:
+        try:
+            analyzer = st.session_state.chat_analyzer
+            ai_response = analyzer.chat_response(
+                user_message=last_message,
+                data_info=data_info,
+                anomaly_results=st.session_state.results,
+                blocked_items=st.session_state.blocked_items
+            )
+        except Exception as e:
+            ai_response = f"🤖 <strong>CyberShield AI:</strong>\n\nI encountered an error: {str(e)[:200]}\n\nPlease try again!"
+    else:
+        # Demo responses with data context if available
+        if data_info:
+            demo_responses = [
+                f"🤖 **CyberShield AI (Demo Mode):**\n\nI see you're working with a dataset from {data_info['source']} containing {data_info['records']} records with {data_info['columns']} features. To get detailed analysis of your specific anomalies, please initialize me with your Google AI API key in the sidebar! 🚀",
+                f"🤖 <strong>CyberShield AI (Demo Mode):</strong>\n\nYour dataset has {data_info['records']} records. For specific anomaly analysis and threat detection in this data, I need to be properly initialized. Please use your API key to activate full AI capabilities! 🔍",
+                f"🤖 **CyberShield AI (Demo Mode):**\n\nI can see your data structure. With {data_info['numeric']} numeric features out of {data_info['columns']} total columns. To analyze anomalies and provide security insights, please initialize me with your API key first! 🛡️"
+            ]
+        else:
+            demo_responses = [
+                "🤖 **CyberShield AI (Demo Mode):**\n\nI'd love to help you analyze your cybersecurity data! To get detailed anomaly analysis and threat detection, please:\n\n1. Get a free API key from Google AI Studio\n2. Enter it in the sidebar\n3. Click 'Initialize Gemma LLM'\n\nThen I can analyze your specific data and anomalies! 🚀",
+                "🤖 **CyberShield AI (Demo Mode):**\n\nFor detailed analysis of your CSV data and detected anomalies, I need to be properly initialized. Please initialize me using your Google AI API key in the sidebar settings! 🔍",
+                "🤖 **CyberShield AI (Demo Mode):**\n\nGreat question about cybersecurity data! To give you accurate insights about your specific anomalies and threats, I need to be connected to the AI model. Please initialize me first with your API key! 🛡️"
+            ]
+        ai_response = np.random.choice(demo_responses)
+    
+    # Add AI response to history
+    st.session_state.chat_history.append({
+        'role': 'assistant',
+        'message': ai_response,
+        'timestamp': datetime.now().strftime("%H:%M:%S")
+    })
+    
+    # Clear typing indicator
+    st.session_state.is_typing = False
+    
+    # Rerun to show response
+    st.rerun()
+
+with tab5:
     st.markdown("### 📈 REAL-TIME DASHBOARD")
     
     if not st.session_state.results:
@@ -888,7 +1341,6 @@ with tab4:
         results = st.session_state.results
         anomalies = [r for r in results if r['is_anomaly'] == 1]
         
-        # Top Metrics
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Threats", len(anomalies), 
@@ -914,7 +1366,7 @@ st.markdown("""
     Real-time Anomaly Detection System
     </p>
     <p style="font-size: 0.8rem; color: #660000;">
-    Anomaly Detection: Custom Isolation Forest | AI Analysis: Google Gemma 7B
+    Anomaly Detection: Custom Isolation Forest | AI Analysis: Google Gemma 7B | AI Assistant: Enhanced Smart Chat
     </p>
 </div>
 """, unsafe_allow_html=True)
