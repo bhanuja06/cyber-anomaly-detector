@@ -734,7 +734,7 @@ with st.sidebar:
     st.divider()
     
     # GEMMA 7B SETTINGS
-    st.markdown("### 🤖 GEMMA 7B SETTINGS")
+    st.markdown("### 🤖 GEMMA-IT SETTINGS")
     
     api_key = st.text_input("Google AI API Key", 
                            value=st.session_state.gemma_api_key,
@@ -748,7 +748,7 @@ with st.sidebar:
         if not api_key:
             st.error("Please enter API key")
         else:
-            with st.spinner("Initializing Gemma 7B..."):
+            with st.spinner("Initializing Gemma-IT..."):
                 analyzer = GemmaLLMAnalyzer(api_key)
                 success, message = analyzer.initialize()
                 if success:
